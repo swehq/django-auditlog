@@ -112,7 +112,7 @@ class LogEntryManager(models.Manager):
             if callable(get_additional_data):
                 kwargs.setdefault("additional_data", get_additional_data())
 
-            objects = [smart_str(instance) for instance in changed_queryset]
+            objects = [self.serialize(instance, fields=[]) for instance in changed_queryset]
             kwargs["changes"] = json.dumps(
                 {
                     field_name: {
@@ -201,6 +201,12 @@ class LogEntryManager(models.Manager):
 
         return self.filter(content_type=content_type)
 
+    def serialize(self, instance, **kwargs):
+        instance_copy = self._get_copy_with_python_typed_fields(instance)
+        return dict(
+            json.loads(serializers.serialize("json", (instance_copy,), **kwargs))[0]
+        )
+
     def _get_pk_value(self, instance):
         """
         Get the primary key field value for a model instance.
@@ -232,10 +238,7 @@ class LogEntryManager(models.Manager):
                 "fields", self._get_applicable_model_fields(instance, model_fields)
             )
 
-        instance_copy = self._get_copy_with_python_typed_fields(instance)
-        data = dict(
-            json.loads(serializers.serialize("json", (instance_copy,), **kwargs))[0]
-        )
+        data = self.serialize(instance, **kwargs)
 
         mask_fields = model_fields["mask_fields"]
         if mask_fields:
