@@ -103,6 +103,9 @@ class LogEntryManager(models.Manager):
             )
             kwargs.setdefault("object_pk", pk)
             kwargs.setdefault("object_repr", smart_str(instance))
+            kwargs.setdefault(
+                "serialized_data", self._get_serialized_data_or_none(instance)
+            )
             kwargs.setdefault("action", LogEntry.Action.UPDATE)
 
             if isinstance(pk, int):
