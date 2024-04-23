@@ -49,8 +49,7 @@ class LogEntryManager(models.Manager):
                 "serialized_data", self._get_serialized_data_or_none(instance)
             )
 
-            if isinstance(pk, int):
-                kwargs.setdefault("object_id", pk)
+            kwargs.setdefault("object_id", int(pk))
 
             get_additional_data = getattr(instance, "get_additional_data", None)
             if callable(get_additional_data):
