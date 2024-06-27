@@ -1,5 +1,6 @@
 import ast
 import json
+import uuid
 from copy import deepcopy
 from datetime import timezone
 from typing import Any, Dict, List
@@ -49,7 +50,8 @@ class LogEntryManager(models.Manager):
                 "serialized_data", self._get_serialized_data_or_none(instance)
             )
 
-            kwargs.setdefault("object_id", int(pk))
+            if not isinstance(pk, uuid.UUID):
+                kwargs.setdefault("object_id", int(pk))
 
             get_additional_data = getattr(instance, "get_additional_data", None)
             if callable(get_additional_data):
@@ -517,17 +519,36 @@ class AuditlogHistoryField(GenericRelation):
     :type delete_related: bool
     """
 
-    def __init__(self, pk_indexable=True, delete_related=True, **kwargs):
+    def __init__(self, pk_indexable=True, delete_related=True, pk_field_force_cast=None, **kwargs):
         kwargs["to"] = LogEntry
 
         if pk_indexable:
             kwargs["object_id_field"] = "object_id"
         else:
             kwargs["object_id_field"] = "object_pk"
+        self.pk_field_force_cast = pk_field_force_cast
 
         kwargs["content_type_field"] = "content_type"
         self.delete_related = delete_related
         super().__init__(**kwargs)
+
+
+    def cast_column(self, column):
+        return (f'{column}"::{self.pk_field_force_cast} AND'
+                f' "{self.remote_field.model._meta.db_table}"."{column}"'
+                f'="{self.remote_field.model._meta.db_table}"."{column}')
+
+
+    def get_joining_columns(self, reverse_join=False):
+        source = self.reverse_related_fields if reverse_join else self.related_fields
+        if self.pk_field_force_cast and reverse_join:
+            return tuple(
+                (lhs_field.column, self.cast_column(rhs_field.column)) for lhs_field, rhs_field in source
+            )
+        return tuple(
+            (lhs_field.column, rhs_field.column) for lhs_field, rhs_field in source
+        )
+
 
     def bulk_related_objects(self, objs, using=DEFAULT_DB_ALIAS):
         """
